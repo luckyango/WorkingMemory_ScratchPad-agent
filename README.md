@@ -93,7 +93,7 @@ $env:OPENAI_API_KEY="your_api_key"
 ### 3. Run the demo
 
 ```bash
-python ScratchPad_Agent.py
+python examples/financial_analysis.py
 ```
 
 ## Project Structure
@@ -102,6 +102,8 @@ python ScratchPad_Agent.py
 .
 |-- README.md
 |-- ScratchPad_Agent.py
+|-- examples/
+|   `-- financial_analysis.py
 |-- requirements.txt
 `-- .env.example
 ```
@@ -110,6 +112,10 @@ Main classes:
 
 - `Scratchpad`: Manages short-term working memory.
 - `ScratchpadAgent`: Manages prompts, tool definitions, tool execution, and the reasoning loop.
+
+Example entry point:
+
+- `examples/financial_analysis.py`: Runs the mock Q1 financial analysis scenario.
 
 ## Interview Talking Points
 
@@ -147,7 +153,6 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 
 ### Short-term Improvements
 
-- Move the financial analysis demo into `examples/financial_analysis.py`.
 - Add unit tests for memory write/read, clearing, prompt formatting, and tool execution.
 - Add structured logs for each model call, tool call, tool argument, and tool result.
 
