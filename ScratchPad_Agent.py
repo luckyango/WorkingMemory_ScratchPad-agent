@@ -1,9 +1,11 @@
 import json
 from datetime import datetime
-from openai import OpenAI
 from typing import Any
 
-client = OpenAI()
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 class Scratchpad:
     """Working memory / scratch paper"""
@@ -55,8 +57,23 @@ class Scratchpad:
 class ScratchpadAgent:
     """Multi-step reasoning Agent using a Scratchpad"""
     
-    def __init__(self):
+    def __init__(self, client: Any | None = None, model: str = "gpt-4o"):
         self.scratchpad = Scratchpad()
+        self.client = client
+        self.model = model
+
+    def _get_client(self) -> Any:
+        """Create an OpenAI client only when model execution is needed."""
+        if self.client is not None:
+            return self.client
+
+        if OpenAI is None:
+            raise RuntimeError(
+                "The openai package is not installed. Run `pip install -r requirements.txt`."
+            )
+
+        self.client = OpenAI()
+        return self.client
     
     def _build_system_prompt(self) -> str:
         """Build system prompt including current Scratchpad contents"""
@@ -180,8 +197,8 @@ When solving problems, you should:
             # Update system prompt each call to reflect latest scratchpad state
             messages[0]["content"] = self._build_system_prompt()
             
-            response = client.chat.completions.create(
-                model="gpt-4o",
+            response = self._get_client().chat.completions.create(
+                model=self.model,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto"

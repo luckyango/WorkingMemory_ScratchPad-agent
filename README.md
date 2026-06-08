@@ -96,6 +96,12 @@ $env:OPENAI_API_KEY="your_api_key"
 python examples/financial_analysis.py
 ```
 
+### 4. Run tests
+
+```bash
+python -m unittest discover -s tests
+```
+
 ## Project Structure
 
 ```text
@@ -104,6 +110,8 @@ python examples/financial_analysis.py
 |-- ScratchPad_Agent.py
 |-- examples/
 |   `-- financial_analysis.py
+|-- tests/
+|   `-- test_scratchpad.py
 |-- requirements.txt
 `-- .env.example
 ```
@@ -116,6 +124,10 @@ Main classes:
 Example entry point:
 
 - `examples/financial_analysis.py`: Runs the mock Q1 financial analysis scenario.
+
+Tests:
+
+- `tests/test_scratchpad.py`: Covers memory read/write behavior, prompt formatting, and Scratchpad tool execution.
 
 ## Interview Talking Points
 
@@ -153,7 +165,6 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 
 ### Short-term Improvements
 
-- Add unit tests for memory write/read, clearing, prompt formatting, and tool execution.
 - Add structured logs for each model call, tool call, tool argument, and tool result.
 
 ### Mid-term Improvements
