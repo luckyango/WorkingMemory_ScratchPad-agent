@@ -1,3 +1,4 @@
+import copy
 import json
 from datetime import datetime
 from typing import Any
@@ -36,6 +37,10 @@ class Scratchpad:
     def list_keys(self) -> list[str]:
         """List all keys"""
         return list(self._notes.keys())
+
+    def snapshot(self) -> dict[str, Any]:
+        """Return a copy of the current working memory state."""
+        return copy.deepcopy(self._notes)
     
     def to_prompt_text(self) -> str:
         """Format Scratchpad contents as prompt text"""
@@ -61,6 +66,19 @@ class ScratchpadAgent:
         self.scratchpad = Scratchpad()
         self.client = client
         self.model = model
+        self._trace: list[dict[str, Any]] = []
+
+    def _record_event(self, event_type: str, **payload: Any) -> None:
+        """Record a structured trace event for debugging and replay."""
+        self._trace.append({
+            "type": event_type,
+            "time": datetime.now().isoformat(),
+            **payload,
+        })
+
+    def get_trace(self) -> list[dict[str, Any]]:
+        """Return a copy of the current agent trace."""
+        return copy.deepcopy(self._trace)
 
     def _get_client(self) -> Any:
         """Create an OpenAI client only when model execution is needed."""
@@ -153,24 +171,36 @@ When solving problems, you should:
                 tool_args["value"],
                 tool_args.get("description", "")
             )
-            return f"Saved: {tool_args['key']} = {tool_args['value']}"
+            result = f"Saved: {tool_args['key']} = {tool_args['value']}"
         
         elif tool_name == "read_from_scratchpad":
             value = self.scratchpad.read(tool_args["key"])
             if value is not None:
-                return f"{tool_args['key']} = {json.dumps(value, ensure_ascii=False)}"
+                result = f"{tool_args['key']} = {json.dumps(value, ensure_ascii=False)}"
             else:
-                return f"Key not found: {tool_args['key']}, available keys: {self.scratchpad.list_keys()}"
+                result = f"Key not found: {tool_args['key']}, available keys: {self.scratchpad.list_keys()}"
         
         elif tool_name == "list_scratchpad_keys":
             keys = self.scratchpad.list_keys()
-            return f"Keys in working memory: {keys}"
+            result = f"Keys in working memory: {keys}"
         
-        return "Unknown tool"
+        else:
+            result = "Unknown tool"
+
+        self._record_event(
+            "tool_execution",
+            tool_name=tool_name,
+            tool_args=tool_args,
+            result=result,
+            memory_snapshot=self.scratchpad.snapshot(),
+        )
+        return result
     
     def solve(self, problem: str) -> str:
         """Solve a complex problem"""
         self.scratchpad.clear()
+        self._trace.clear()
+        self._record_event("task_started", problem=problem, model=self.model)
         
         print(f"\n{'='*50}")
         print(f"Problem: {problem}")
@@ -196,6 +226,11 @@ When solving problems, you should:
             
             # Update system prompt each call to reflect latest scratchpad state
             messages[0]["content"] = self._build_system_prompt()
+            self._record_event(
+                "model_call_started",
+                step=step,
+                memory_snapshot=self.scratchpad.snapshot(),
+            )
             
             response = self._get_client().chat.completions.create(
                 model=self.model,
@@ -207,9 +242,21 @@ When solving problems, you should:
             message = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
             messages.append(message)
+            self._record_event(
+                "model_call_finished",
+                step=step,
+                finish_reason=finish_reason,
+                tool_call_count=len(message.tool_calls or []),
+            )
             
             if finish_reason == "stop":
                 print(f"\n[Final Answer]\n{message.content}")
+                self._record_event(
+                    "task_finished",
+                    step=step,
+                    final_answer=message.content,
+                    memory_snapshot=self.scratchpad.snapshot(),
+                )
                 return message.content
             
             if finish_reason == "tool_calls" and message.tool_calls:
@@ -225,6 +272,12 @@ When solving problems, you should:
                         "tool_call_id": tc.id,
                         "content": result
                     })
-        
-        return "Exceeded maximum number of steps"
+        result = "Exceeded maximum number of steps"
+        self._record_event(
+            "task_failed",
+            reason="max_steps_exceeded",
+            max_steps=max_steps,
+            memory_snapshot=self.scratchpad.snapshot(),
+        )
+        return result
 

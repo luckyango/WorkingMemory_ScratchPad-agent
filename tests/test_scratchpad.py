@@ -63,6 +63,29 @@ class ScratchpadAgentToolTest(unittest.TestCase):
 
         self.assertIn("profit_margin", result)
 
+    def test_tool_execution_is_recorded_in_trace(self) -> None:
+        agent = ScratchpadAgent(client=object())
+
+        agent._execute_tool(
+            "save_to_scratchpad",
+            {"key": "total_revenue", "value": 465},
+        )
+
+        trace = agent.get_trace()
+        self.assertEqual(len(trace), 1)
+        self.assertEqual(trace[0]["type"], "tool_execution")
+        self.assertEqual(trace[0]["tool_name"], "save_to_scratchpad")
+        self.assertEqual(trace[0]["memory_snapshot"]["total_revenue"]["value"], 465)
+
+    def test_trace_returns_a_copy(self) -> None:
+        agent = ScratchpadAgent(client=object())
+        agent._execute_tool("list_scratchpad_keys", {})
+
+        trace = agent.get_trace()
+        trace[0]["type"] = "mutated"
+
+        self.assertEqual(agent.get_trace()[0]["type"], "tool_execution")
+
 
 if __name__ == "__main__":
     unittest.main()

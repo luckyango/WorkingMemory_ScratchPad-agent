@@ -9,6 +9,7 @@ The current implementation uses Python and OpenAI Chat Completions tool calling.
 - Built a pluggable Scratchpad working memory module for structured short-term state management.
 - Exposed memory operations through OpenAI tool calling, allowing the model to decide when to save or retrieve intermediate results.
 - Implemented a multi-step agent loop that refreshes the system prompt with the latest memory state before each model call.
+- Added structured runtime tracing for task lifecycle events, model calls, tool executions, and memory snapshots.
 - Validated the mechanism with a mock financial analysis task involving calculations, comparison, anomaly detection, and final summarization.
 - Kept the codebase intentionally lightweight so it can be extended into persistent memory, task planning, trace visualization, RAG, or tool orchestration systems.
 
@@ -18,7 +19,7 @@ The current implementation uses Python and OpenAI Chat Completions tool calling.
 - **LLM API**: OpenAI Chat Completions
 - **Agent Patterns**: Tool Calling, Working Memory, Multi-step Reasoning Loop
 - **Data Handling**: JSON, Python dict/list
-- **Engineering Focus**: State management, prompt injection, tool schema design, agent control flow
+- **Engineering Focus**: State management, prompt injection, tool schema design, agent control flow, runtime observability
 
 ## Core Components
 
@@ -56,6 +57,19 @@ The model does not directly mutate Python objects. It requests memory operations
 6. Return the final answer once the model stops requesting tools.
 
 This flow demonstrates several core engineering skills in agent development: message management, tool execution, loop control, state synchronization, and termination handling.
+
+### 4. Runtime Trace
+
+`ScratchpadAgent` records structured trace events during execution. The trace can be accessed with `get_trace()` and includes:
+
+- `task_started`
+- `model_call_started`
+- `model_call_finished`
+- `tool_execution`
+- `task_finished`
+- `task_failed`
+
+Each tool execution event includes the tool name, tool arguments, result, and a memory snapshot. This makes the agent easier to debug, test, replay, and eventually visualize in a trace viewer.
 
 ## Example Task
 
@@ -127,7 +141,7 @@ Example entry point:
 
 Tests:
 
-- `tests/test_scratchpad.py`: Covers memory read/write behavior, prompt formatting, and Scratchpad tool execution.
+- `tests/test_scratchpad.py`: Covers memory read/write behavior, prompt formatting, Scratchpad tool execution, and trace immutability.
 
 ## Interview Talking Points
 
@@ -151,6 +165,7 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 - Understanding OpenAI tool calling message flow and execution semantics.
 - Designing a lightweight state management layer for LLM workflows.
 - Synchronizing external state with prompt context across multiple model calls.
+- Adding basic observability through structured agent trace events.
 - Building a focused mock case to validate the agent mechanism beyond a prompt-only demo.
 - Identifying clear paths toward production hardening, including persistence, testing, observability, and modular architecture.
 
@@ -165,7 +180,7 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 
 ### Short-term Improvements
 
-- Add structured logs for each model call, tool call, tool argument, and tool result.
+- Persist trace events to JSONL so runs can be inspected after process exit.
 
 ### Mid-term Improvements
 
