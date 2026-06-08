@@ -1,3 +1,4 @@
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -8,8 +9,33 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from ScratchPad_Agent import ScratchpadAgent
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the Scratchpad Agent financial analysis demo."
+    )
+    parser.add_argument(
+        "--model",
+        default="gpt-4o",
+        help="OpenAI model name to use for the demo.",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=10,
+        help="Maximum number of reasoning/tool-calling steps.",
+    )
+    parser.add_argument(
+        "--trace-path",
+        type=Path,
+        default=PROJECT_ROOT / "traces" / "financial_analysis.jsonl",
+        help="Path to the JSONL trace output file.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Run a mock Q1 financial analysis task with the Scratchpad Agent."""
+    args = parse_args()
     test_data = {
         "Q1 Revenue": {
             "Product A": 120,
@@ -31,8 +57,11 @@ def main() -> None:
         },
     }
 
-    trace_path = PROJECT_ROOT / "traces" / "financial_analysis.jsonl"
-    agent = ScratchpadAgent(trace_path=trace_path)
+    agent = ScratchpadAgent(
+        model=args.model,
+        max_steps=args.max_steps,
+        trace_path=args.trace_path,
+    )
     agent.solve(f"""
 Please analyze the following Q1 financial data:
 {json.dumps(test_data, ensure_ascii=False, indent=2)}
@@ -43,7 +72,7 @@ Please complete:
 3. Identify products with abnormally low profit margins (below 20%)
 4. Generate an analysis summary
 """)
-    print(f"\n[Trace saved to] {trace_path}")
+    print(f"\n[Trace saved to] {args.trace_path}")
 
 
 if __name__ == "__main__":

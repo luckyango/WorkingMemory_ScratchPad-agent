@@ -67,11 +67,13 @@ class ScratchpadAgent:
         self,
         client: Any | None = None,
         model: str = "gpt-4o",
+        max_steps: int = 10,
         trace_path: str | Path | None = None,
     ):
         self.scratchpad = Scratchpad()
         self.client = client
         self.model = model
+        self.max_steps = max_steps
         self.trace_path = Path(trace_path) if trace_path else None
         self._trace: list[dict[str, Any]] = []
 
@@ -183,43 +185,91 @@ When solving problems, you should:
     
     def _execute_tool(self, tool_name: str, tool_args: dict) -> str:
         """Execute a Scratchpad tool"""
-        if tool_name == "save_to_scratchpad":
-            self.scratchpad.write(
-                tool_args["key"],
-                tool_args["value"],
-                tool_args.get("description", "")
-            )
-            result = f"Saved: {tool_args['key']} = {tool_args['value']}"
-        
-        elif tool_name == "read_from_scratchpad":
-            value = self.scratchpad.read(tool_args["key"])
-            if value is not None:
-                result = f"{tool_args['key']} = {json.dumps(value, ensure_ascii=False)}"
-            else:
-                result = f"Key not found: {tool_args['key']}, available keys: {self.scratchpad.list_keys()}"
-        
-        elif tool_name == "list_scratchpad_keys":
-            keys = self.scratchpad.list_keys()
-            result = f"Keys in working memory: {keys}"
-        
-        else:
-            result = "Unknown tool"
+        try:
+            if tool_name == "save_to_scratchpad":
+                if "key" not in tool_args or "value" not in tool_args:
+                    missing = [
+                        name for name in ("key", "value") if name not in tool_args
+                    ]
+                    raise ValueError(f"Missing required argument(s): {missing}")
 
-        self._record_event(
-            "tool_execution",
-            tool_name=tool_name,
-            tool_args=tool_args,
-            result=result,
-            memory_snapshot=self.scratchpad.snapshot(),
-        )
-        return result
+                self.scratchpad.write(
+                    tool_args["key"],
+                    tool_args["value"],
+                    tool_args.get("description", "")
+                )
+                result = f"Saved: {tool_args['key']} = {tool_args['value']}"
+
+            elif tool_name == "read_from_scratchpad":
+                if "key" not in tool_args:
+                    raise ValueError("Missing required argument: key")
+
+                value = self.scratchpad.read(tool_args["key"])
+                if value is not None:
+                    result = f"{tool_args['key']} = {json.dumps(value, ensure_ascii=False)}"
+                else:
+                    result = f"Key not found: {tool_args['key']}, available keys: {self.scratchpad.list_keys()}"
+
+            elif tool_name == "list_scratchpad_keys":
+                keys = self.scratchpad.list_keys()
+                result = f"Keys in working memory: {keys}"
+
+            else:
+                result = "Unknown tool"
+
+            self._record_event(
+                "tool_execution",
+                tool_name=tool_name,
+                tool_args=tool_args,
+                result=result,
+                memory_snapshot=self.scratchpad.snapshot(),
+            )
+            return result
+
+        except Exception as exc:
+            result = f"Tool execution failed: {exc}"
+            self._record_event(
+                "tool_execution_failed",
+                tool_name=tool_name,
+                tool_args=tool_args,
+                error=str(exc),
+                memory_snapshot=self.scratchpad.snapshot(),
+            )
+            return result
+
+    def _parse_tool_arguments(self, raw_arguments: str) -> dict[str, Any]:
+        """Parse tool-call arguments and record malformed JSON errors."""
+        try:
+            parsed = json.loads(raw_arguments)
+        except json.JSONDecodeError as exc:
+            self._record_event(
+                "tool_argument_parse_failed",
+                raw_arguments=raw_arguments,
+                error=str(exc),
+            )
+            return {}
+
+        if not isinstance(parsed, dict):
+            self._record_event(
+                "tool_argument_parse_failed",
+                raw_arguments=raw_arguments,
+                error="Tool arguments must decode to a JSON object.",
+            )
+            return {}
+
+        return parsed
     
     def solve(self, problem: str) -> str:
         """Solve a complex problem"""
         self.scratchpad.clear()
         self._trace.clear()
         self.clear_trace_file()
-        self._record_event("task_started", problem=problem, model=self.model)
+        self._record_event(
+            "task_started",
+            problem=problem,
+            model=self.model,
+            max_steps=self.max_steps,
+        )
         
         print(f"\n{'='*50}")
         print(f"Problem: {problem}")
@@ -237,10 +287,9 @@ When solving problems, you should:
         ]
         
         tools = self._tools_for_scratchpad()
-        max_steps = 10
         step = 0
         
-        while step < max_steps:
+        while step < self.max_steps:
             step += 1
             
             # Update system prompt each call to reflect latest scratchpad state
@@ -251,12 +300,28 @@ When solving problems, you should:
                 memory_snapshot=self.scratchpad.snapshot(),
             )
             
-            response = self._get_client().chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto"
-            )
+            try:
+                response = self._get_client().chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto"
+                )
+            except Exception as exc:
+                result = f"Model call failed: {exc}"
+                self._record_event(
+                    "model_call_failed",
+                    step=step,
+                    error=str(exc),
+                    memory_snapshot=self.scratchpad.snapshot(),
+                )
+                self._record_event(
+                    "task_failed",
+                    reason="model_call_failed",
+                    step=step,
+                    memory_snapshot=self.scratchpad.snapshot(),
+                )
+                return result
             
             message = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
@@ -282,7 +347,7 @@ When solving problems, you should:
                 for tc in message.tool_calls:
                     result = self._execute_tool(
                         tc.function.name,
-                        json.loads(tc.function.arguments)
+                        self._parse_tool_arguments(tc.function.arguments)
                     )
                     print(f"[Tool] {tc.function.name}: {result[:100]}")
                     
@@ -295,7 +360,7 @@ When solving problems, you should:
         self._record_event(
             "task_failed",
             reason="max_steps_exceeded",
-            max_steps=max_steps,
+            max_steps=self.max_steps,
             memory_snapshot=self.scratchpad.snapshot(),
         )
         return result

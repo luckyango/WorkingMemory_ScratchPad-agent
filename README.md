@@ -65,11 +65,16 @@ This flow demonstrates several core engineering skills in agent development: mes
 - `task_started`
 - `model_call_started`
 - `model_call_finished`
+- `model_call_failed`
 - `tool_execution`
+- `tool_execution_failed`
+- `tool_argument_parse_failed`
 - `task_finished`
 - `task_failed`
 
 Each tool execution event includes the tool name, tool arguments, result, and a memory snapshot. This makes the agent easier to debug, test, replay, and eventually visualize in a trace viewer.
+
+The runtime also handles common failure modes such as malformed tool arguments, missing required tool arguments, and model-call exceptions. These failures are returned as controlled messages and recorded as trace events instead of crashing the entire run.
 
 Example:
 
@@ -118,6 +123,12 @@ python examples/financial_analysis.py
 
 The demo writes a JSONL trace to `traces/financial_analysis.jsonl`.
 
+Optional CLI flags:
+
+```bash
+python examples/financial_analysis.py --model gpt-4o --max-steps 10 --trace-path traces/financial_analysis.jsonl
+```
+
 ### 4. Run tests
 
 ```bash
@@ -150,7 +161,7 @@ Example entry point:
 
 Tests:
 
-- `tests/test_scratchpad.py`: Covers memory read/write behavior, prompt formatting, Scratchpad tool execution, and trace immutability.
+- `tests/test_scratchpad.py`: Covers memory read/write behavior, prompt formatting, Scratchpad tool execution, trace immutability, trace persistence, and runtime error handling.
 
 ## Interview Talking Points
 
@@ -189,7 +200,7 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 
 ### Short-term Improvements
 
-- Add a small CLI option for choosing model name, max steps, and trace output path.
+- Add an evaluation harness to compare agent behavior with and without Scratchpad memory.
 
 ### Mid-term Improvements
 

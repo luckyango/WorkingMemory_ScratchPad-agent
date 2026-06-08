@@ -105,6 +105,12 @@ class ScratchpadAgentToolTest(unittest.TestCase):
             self.assertEqual(event["type"], "tool_execution")
             self.assertEqual(event["tool_name"], "save_to_scratchpad")
 
+    def test_agent_accepts_model_and_max_steps_configuration(self) -> None:
+        agent = ScratchpadAgent(client=object(), model="test-model", max_steps=3)
+
+        self.assertEqual(agent.model, "test-model")
+        self.assertEqual(agent.max_steps, 3)
+
     def test_clear_trace_file_removes_persisted_trace(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trace_path = Path(temp_dir) / "trace.jsonl"
@@ -114,6 +120,30 @@ class ScratchpadAgentToolTest(unittest.TestCase):
             agent.clear_trace_file()
 
             self.assertFalse(trace_path.exists())
+
+    def test_missing_tool_argument_is_recorded_without_crashing(self) -> None:
+        agent = ScratchpadAgent(client=object())
+
+        result = agent._execute_tool("save_to_scratchpad", {"key": "total_revenue"})
+
+        self.assertIn("Tool execution failed", result)
+        self.assertEqual(agent.get_trace()[0]["type"], "tool_execution_failed")
+
+    def test_malformed_tool_arguments_are_recorded(self) -> None:
+        agent = ScratchpadAgent(client=object())
+
+        parsed = agent._parse_tool_arguments("{not-valid-json")
+
+        self.assertEqual(parsed, {})
+        self.assertEqual(agent.get_trace()[0]["type"], "tool_argument_parse_failed")
+
+    def test_non_object_tool_arguments_are_rejected(self) -> None:
+        agent = ScratchpadAgent(client=object())
+
+        parsed = agent._parse_tool_arguments('["not", "an", "object"]')
+
+        self.assertEqual(parsed, {})
+        self.assertEqual(agent.get_trace()[0]["type"], "tool_argument_parse_failed")
 
 
 if __name__ == "__main__":
