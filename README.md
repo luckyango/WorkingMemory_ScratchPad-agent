@@ -73,7 +73,7 @@ This scenario demonstrates why Scratchpad memory is useful. Intermediate values 
 ### 1. Install dependencies
 
 ```bash
-pip install openai
+pip install -r requirements.txt
 ```
 
 ### 2. Configure environment variable
@@ -82,6 +82,8 @@ pip install openai
 export OPENAI_API_KEY="your_api_key"
 ```
 
+You can also copy `.env.example` as a reference when configuring your local environment.
+
 Windows PowerShell:
 
 ```powershell
@@ -89,8 +91,6 @@ $env:OPENAI_API_KEY="your_api_key"
 ```
 
 ### 3. Run the demo
-
-The current main file is named `ScratchPad_Agent`. If direct execution fails, rename it to `ScratchPad_Agent.py` first.
 
 ```bash
 python ScratchPad_Agent.py
@@ -101,7 +101,9 @@ python ScratchPad_Agent.py
 ```text
 .
 |-- README.md
-`-- ScratchPad_Agent
+|-- ScratchPad_Agent.py
+|-- requirements.txt
+`-- .env.example
 ```
 
 Main classes:
@@ -145,9 +147,6 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 
 ### Short-term Improvements
 
-- Rename `ScratchPad_Agent` to `ScratchPad_Agent.py`.
-- Add `requirements.txt` for dependency management.
-- Add `.env.example` documenting the required `OPENAI_API_KEY`.
 - Move the financial analysis demo into `examples/financial_analysis.py`.
 - Add unit tests for memory write/read, clearing, prompt formatting, and tool execution.
 - Add structured logs for each model call, tool call, tool argument, and tool result.
