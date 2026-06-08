@@ -31,7 +31,8 @@ def main() -> None:
         },
     }
 
-    agent = ScratchpadAgent()
+    trace_path = PROJECT_ROOT / "traces" / "financial_analysis.jsonl"
+    agent = ScratchpadAgent(trace_path=trace_path)
     agent.solve(f"""
 Please analyze the following Q1 financial data:
 {json.dumps(test_data, ensure_ascii=False, indent=2)}
@@ -42,6 +43,7 @@ Please complete:
 3. Identify products with abnormally low profit margins (below 20%)
 4. Generate an analysis summary
 """)
+    print(f"\n[Trace saved to] {trace_path}")
 
 
 if __name__ == "__main__":

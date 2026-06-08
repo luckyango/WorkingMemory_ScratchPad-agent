@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from ScratchPad_Agent import Scratchpad, ScratchpadAgent
 
@@ -85,6 +88,32 @@ class ScratchpadAgentToolTest(unittest.TestCase):
         trace[0]["type"] = "mutated"
 
         self.assertEqual(agent.get_trace()[0]["type"], "tool_execution")
+
+    def test_trace_events_can_be_persisted_as_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trace_path = Path(temp_dir) / "trace.jsonl"
+            agent = ScratchpadAgent(client=object(), trace_path=trace_path)
+
+            agent._execute_tool(
+                "save_to_scratchpad",
+                {"key": "total_revenue", "value": 465},
+            )
+
+            lines = trace_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 1)
+            event = json.loads(lines[0])
+            self.assertEqual(event["type"], "tool_execution")
+            self.assertEqual(event["tool_name"], "save_to_scratchpad")
+
+    def test_clear_trace_file_removes_persisted_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trace_path = Path(temp_dir) / "trace.jsonl"
+            agent = ScratchpadAgent(client=object(), trace_path=trace_path)
+            agent._execute_tool("list_scratchpad_keys", {})
+
+            agent.clear_trace_file()
+
+            self.assertFalse(trace_path.exists())
 
 
 if __name__ == "__main__":

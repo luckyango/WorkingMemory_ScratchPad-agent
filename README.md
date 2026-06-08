@@ -60,7 +60,7 @@ This flow demonstrates several core engineering skills in agent development: mes
 
 ### 4. Runtime Trace
 
-`ScratchpadAgent` records structured trace events during execution. The trace can be accessed with `get_trace()` and includes:
+`ScratchpadAgent` records structured trace events during execution. The trace can be accessed in memory with `get_trace()` or persisted to JSONL by passing `trace_path` when creating the agent. Trace events include:
 
 - `task_started`
 - `model_call_started`
@@ -70,6 +70,12 @@ This flow demonstrates several core engineering skills in agent development: mes
 - `task_failed`
 
 Each tool execution event includes the tool name, tool arguments, result, and a memory snapshot. This makes the agent easier to debug, test, replay, and eventually visualize in a trace viewer.
+
+Example:
+
+```python
+agent = ScratchpadAgent(trace_path="traces/financial_analysis.jsonl")
+```
 
 ## Example Task
 
@@ -110,6 +116,8 @@ $env:OPENAI_API_KEY="your_api_key"
 python examples/financial_analysis.py
 ```
 
+The demo writes a JSONL trace to `traces/financial_analysis.jsonl`.
+
 ### 4. Run tests
 
 ```bash
@@ -121,6 +129,7 @@ python -m unittest discover -s tests
 ```text
 .
 |-- README.md
+|-- .gitignore
 |-- ScratchPad_Agent.py
 |-- examples/
 |   `-- financial_analysis.py
@@ -180,11 +189,10 @@ Tool calling lets the model decide when it needs to read or write memory, while 
 
 ### Short-term Improvements
 
-- Persist trace events to JSONL so runs can be inspected after process exit.
+- Add a small CLI option for choosing model name, max steps, and trace output path.
 
 ### Mid-term Improvements
 
-- Add persistence with SQLite or JSONL so each task run can be replayed.
 - Build a trace viewer to visualize agent steps, tool calls, and memory state transitions.
 - Add more realistic demo scenarios such as customer support troubleshooting, data analysis, research summarization, or code review assistance.
 - Use Pydantic to validate tool arguments and Scratchpad entries.

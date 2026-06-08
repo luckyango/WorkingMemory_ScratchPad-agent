@@ -1,6 +1,7 @@
 import copy
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 try:
@@ -62,23 +63,40 @@ class Scratchpad:
 class ScratchpadAgent:
     """Multi-step reasoning Agent using a Scratchpad"""
     
-    def __init__(self, client: Any | None = None, model: str = "gpt-4o"):
+    def __init__(
+        self,
+        client: Any | None = None,
+        model: str = "gpt-4o",
+        trace_path: str | Path | None = None,
+    ):
         self.scratchpad = Scratchpad()
         self.client = client
         self.model = model
+        self.trace_path = Path(trace_path) if trace_path else None
         self._trace: list[dict[str, Any]] = []
 
     def _record_event(self, event_type: str, **payload: Any) -> None:
         """Record a structured trace event for debugging and replay."""
-        self._trace.append({
+        event = {
             "type": event_type,
             "time": datetime.now().isoformat(),
             **payload,
-        })
+        }
+        self._trace.append(event)
+
+        if self.trace_path:
+            self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.trace_path.open("a", encoding="utf-8") as trace_file:
+                trace_file.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def get_trace(self) -> list[dict[str, Any]]:
         """Return a copy of the current agent trace."""
         return copy.deepcopy(self._trace)
+
+    def clear_trace_file(self) -> None:
+        """Remove the persisted trace file for the current agent, if configured."""
+        if self.trace_path and self.trace_path.exists():
+            self.trace_path.unlink()
 
     def _get_client(self) -> Any:
         """Create an OpenAI client only when model execution is needed."""
@@ -200,6 +218,7 @@ When solving problems, you should:
         """Solve a complex problem"""
         self.scratchpad.clear()
         self._trace.clear()
+        self.clear_trace_file()
         self._record_event("task_started", problem=problem, model=self.model)
         
         print(f"\n{'='*50}")
